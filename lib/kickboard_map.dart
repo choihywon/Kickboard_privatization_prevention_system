@@ -111,7 +111,7 @@ class _KickBoardMapState extends State<KickBoardMap> {
   }
 
   void connectToServer() {
-  Socket.connect('192.168.163.6', 8000).then((socket) {
+  Socket.connect('192.168.218.6', 8000).then((socket) {
     print('Connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
     listenToServer(socket);
   }).catchError((error) {
@@ -133,6 +133,12 @@ void listenToServer(Socket socket) {
         print('Not in use');
         // 'notuse' 메시지를 받으면 자동으로 반납 처리
         autoReturnKickboard();
+      }else if (message == 'kis_wwarning') {
+        setState(() {
+          _message = 'Please return the kickboard within 3 minutes';
+          print('Set message to warning');
+        });
+        print('warning');
       } else {
         setState(() {
           kickboardStatus = KickboardStatus.inUse;
@@ -157,7 +163,7 @@ void autoReturnKickboard() async {
     print('Sending data: ${widget.userId}, $selectedKickboardId, ${_startUseTime!.toIso8601String()}, ${endUseTime.toIso8601String()}');
 
     var response = await http.post(
-      Uri.parse('http://192.168.163.117/record_kickboard_use.php'),
+      Uri.parse('http://192.168.218.117/record_kickboard_use.php'),
       body: {
         'user_id': widget.userId,
         'kickboard_id': selectedKickboardId!,
@@ -178,7 +184,7 @@ void autoReturnKickboard() async {
 
    // 더미 데이터를 사용하여 마커를 생성합니다.
   Future<void> _initKickBoardMarkers() async {
-    final response = await http.get(Uri.parse('http://192.168.163.117/get_kickboard.php'));
+    final response = await http.get(Uri.parse('http://192.168.218.117/get_kickboard.php'));
     if (response.statusCode == 200) {
       List<dynamic> kickBoardList = json.decode(response.body);
 
@@ -235,7 +241,7 @@ void autoReturnKickboard() async {
   }
   Future<void> _sendKickboardStatusUpdate(String userId, String kickboardId, String newStatus) async {
     print('Sending status update to server...');
-    var url = Uri.parse('http://192.168.163.117/update_kickboard_status.php');
+    var url = Uri.parse('http://192.168.218.117/update_kickboard_status.php');
     var response = await http.post(
       url,
       body: {
@@ -260,7 +266,7 @@ void autoReturnKickboard() async {
   print('Sending data: ${widget.userId}, $selectedKickboardId, ${_startUseTime!.toIso8601String()}, ${endUseTime.toIso8601String()}');
     
   var response = await http.post(
-        Uri.parse('http://192.168.163.117/record_kickboard_use.php'),
+        Uri.parse('http://192.168.218.117/record_kickboard_use.php'),
         body: {
             'user_id': widget.userId,
             'kickboard_id': selectedKickboardId!,
@@ -284,7 +290,7 @@ void autoReturnKickboard() async {
 
   Future<String> getUserStatus(String userId) async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.163.117/send_rapsberrypi.php?user_id=$userId'));
+      final response = await http.get(Uri.parse('http://192.168.218.117/send_rapsberrypi.php?user_id=$userId'));
       if (response.statusCode == 200) {
         Map<String, dynamic> data = json.decode(response.body);
         return data['status'];
@@ -303,7 +309,7 @@ void autoReturnKickboard() async {
     var _status;
     try {
       // 서버에 연결
-      _socket = await Socket.connect('192.168.35.107', 9994);
+      _socket = await Socket.connect('192.168.255.6', 9994);
       setState(() {
         _status = 'Connected';
       });
@@ -338,7 +344,7 @@ void autoReturnKickboard() async {
   Future<void> sendStopSignalToRaspberry() async {
     Socket? socket;
     try {
-      socket = await Socket.connect('192.168.163.6', 8000, timeout: Duration(seconds: 5));
+      socket = await Socket.connect('192.168.218.6', 8000, timeout: Duration(seconds: 5));
       socket.write('stop'); // 'stop' 메시지 전송
       print('Stop signal sent to Raspberry Pi');
 
@@ -379,7 +385,7 @@ void autoReturnKickboard() async {
   Future<void> sendWarningSignalToRaspberry() async {
     Socket socket;
     try {
-      socket = await Socket.connect('192.168.163.6', 8000, timeout: Duration(seconds: 5));
+      socket = await Socket.connect('192.168.218.6', 8000, timeout: Duration(seconds: 5));
       socket.write('warning');
       print('Warning signal sent to Raspberry Pi');
 
@@ -393,11 +399,12 @@ void autoReturnKickboard() async {
 
 
 
-  Future<void> sendReservationToRaspberry(String ipAddress, int port, int reservationNumber) async {
+  Future<void> sendReservationToRaspberry(String ipAddress, int port, int reservationNumber, String kickboardId) async {
     try {
       final socket = await Socket.connect(ipAddress, port, timeout: Duration(seconds: 5));
-      socket.write(reservationNumber.toString());
-      print('Reservation sent: $reservationNumber');
+      String reservationMessage = "$reservationNumber,$kickboardId";
+      socket.write(reservationMessage.toString());
+      print('Reservation sent: $reservationNumber, $kickboardId');
       await socket.flush();
       await socket.close();
     } catch (e) {
@@ -405,11 +412,12 @@ void autoReturnKickboard() async {
     }
   }
 
-  Future<void> _sendUseSignalToRaspberry(String ipAddress, int port) async {
+  Future<void> _sendUseSignalToRaspberry(String ipAddress, int port, String kickboardId) async {
     try {
       final socket = await Socket.connect(ipAddress, port, timeout: Duration(seconds: 5));
-      socket.write('3'); // '3'을 전송
-      print('Use signal sent');
+      String useMessage = "3,$kickboardId";  // '3' 명령과 킥보드 ID를 전송
+      socket.write(useMessage);
+      print('Use signal sent with kickboard ID: $kickboardId');
       await socket.flush();
       await socket.close();
     } catch (e) {
@@ -417,22 +425,23 @@ void autoReturnKickboard() async {
     }
   }
 
-  Future<void> _sendReturnSignalToRaspberry(String ipAddress, int port) async {
+  Future<void> _sendReturnSignalToRaspberry(String ipAddress, int port, String kickboardId) async {
     try {
       final socket = await Socket.connect(ipAddress, port, timeout: Duration(seconds: 5));
-      socket.write('4'); // '4'를 전송 (반납 신호)
-      print('Return signal sent');
+      String returnMessage = "4,$kickboardId";  // '4' 명령과 킥보드 ID를 전송
+      socket.write(returnMessage);
+      print('Return signal sent with kickboard ID: $kickboardId');
       await socket.flush();
       await socket.close();
     } catch (e) {
       print('Error sending return signal: $e');
     }
-  }
+}
 
   Future<void> _sendReservationToServer(String userId, String kickboardId) async {
     try {
       var response = await http.post(
-        Uri.parse('http://192.168.163.117/reservation.php'),
+        Uri.parse('http://192.168.218.117/reservation.php'),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -498,7 +507,7 @@ void autoReturnKickboard() async {
                     );
 
                     try {
-                      await sendReservationToRaspberry('192.168.163.6', 8000, 2);
+                      await sendReservationToRaspberry('192.168.218.6', 8000, 2, kickboardId);
                       Navigator.of(context).pop(); // 로딩 인디케이터 제거
                       _moveCameraToMarker(LatLng(double.parse(kickBoard['latitude']), double.parse(kickBoard['longitude'])));
                       _showReservationCompleteDialog(context);
@@ -590,14 +599,34 @@ void autoReturnKickboard() async {
               ),
               markers: _markers,
             ),
-            if (_message == 'Kickboard is not in use')
+            ...(_message == 'Kickboard is not in use' ? [
           Center(
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               color: Colors.red,
-              child: Text('not', style: TextStyle(fontSize: 20, color: Colors.white)),
+              child: Text('notuse', style: TextStyle(fontSize: 20, color: Colors.white)),
             ),
-          ),
+          )
+        ] : []),
+        ...(_message == 'Please return the kickboard within 3 minutes' ? [
+          Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              color: Colors.orange,
+              child: Text(_message, style: TextStyle(fontSize: 20, color: Colors.white)),
+            ),
+          )
+        ] : []),
+        ...(_message == 'Kickboard is in use' ? [
+          Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              color: Colors.green,
+              child: Text('Kickboard is in use', style: TextStyle(fontSize: 20, color: Colors.white)),
+            ),
+          )
+        ] : []),
+          
           if (kickboardStatus == KickboardStatus.inUse) //not to use 자동반납
             Positioned(
               right: 20,
@@ -606,7 +635,7 @@ void autoReturnKickboard() async {
                 onPressed: () async {
                   // 킥보드 반납 처리
                   await _sendKickboardStatusUpdate(widget.userId, selectedKickboardId!, 'active');
-                  await _sendReturnSignalToRaspberry('192.168.163.6', 8000);
+                  await _sendReturnSignalToRaspberry('192.168.218.6', 8000,  selectedKickboardId!);
                   await returnKickboard();
                 },
                 child: Icon(Icons.undo),
@@ -621,7 +650,7 @@ void autoReturnKickboard() async {
                   onPressed: ()  {
                     startUseKickboard(); // 사용 시작 시간 기록
                     connectToServer();
-                    _sendUseSignalToRaspberry('192.168.163.6', 8000);
+                    _sendUseSignalToRaspberry('192.168.218.6', 8000,  selectedKickboardId!);
                     _sendKickboardStatusUpdate(widget.userId, selectedKickboardId!, 'using');
                     setState(() {
                       isUseButtonVisible = false;
@@ -638,7 +667,7 @@ void autoReturnKickboard() async {
                 child: FloatingActionButton(
                   onPressed: () async {
                     await _sendKickboardStatusUpdate(widget.userId, selectedKickboardId!, 'active');
-                    await _sendReturnSignalToRaspberry('192.168.163.6', 8000);
+                    await _sendReturnSignalToRaspberry('192.168.218.6', 8000,  selectedKickboardId!);
                     await returnKickboard();
                     setState(() {
                       isReturnButtonVisible = false;

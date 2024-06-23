@@ -77,7 +77,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     // 서버에 정보를 보내고 응답을 받는 로직
     final response = await http.post(
-      Uri.parse('http://192.168.163.117/signup.php'),
+      Uri.parse('http://192.168.218.117/signup.php'),
       body: {
         'user_id': _idController.text,
         'name': _nameController.text,        
